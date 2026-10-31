@@ -661,9 +661,115 @@
 		</p>
 
 		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+		<h3> Overview </h3>
 		
+		<p>
+			For the extra credit, I implemented bilateral denoising as a post-processing step for my path tracer. Monte Carlo path tracing oftenproducesvisible noise when using a small number of samples per pixel. My goal was to reduce this noise without excessively blurring object boundaries and othe rimportant image details.
+		</p>
 		
+		<h3> Implementation </h3>
+
+		<p>
+			I implemented a bilateral filter that operates on the HDR sampleBuffer, which stores the rendered image in linear RGB radiance values. For each pixel, the filter examines a local neighborhood and computes a weighted average of neighboring colors using two components: a spatial weight and a range weight.
+		</p>
+
+		<p>
+			The spatial weight decreases with the distance between pixels, while the range weight decreases when neighboring pixels have different colors. The combined weight is:
+		</p>
+
+		<p>
+			\[
+			w(p,q) =
+			\exp\left(-\frac{\|p-q\|^2}{2\sigma_s^2}\right)
+			\exp\left(-\frac{\|I(p)-I(q)\|^2}{2\sigma_r^2}\right)
+			\]
+		</p>
+
+		<p>
+			The filtered color is calculated using a normalized weighted average:
+		</p>
+
+		<p>
+			\[
+			I_{\mathrm{filtered}}(p) =
+			\frac{\sum_{q \in N(p)} w(p,q) I(q)}
+			{\sum_{q \in N(p)} w(p,q)}
+			\]
+		</p>
+
+		<p>
+			I used a neighborhood radius of 3 pixels (7 * 7 window), a spatial sigma of 2.0, and a range sigma of 0.2. These parameters provide noticeable smoothing while preserving major color boundaries.
+		</p>
+
+		<p>
+			Initially, I applied the bilateral filter inside write_to_framebuffer(), which is called separately for each rendering tile. This caused visible horizontal artifacts because different tiles were filtered before the entire image was complete.
+		</p>
+
+		<p>
+			To fix this, I moved the denoising operation to the final image-saving stage. After all rendering threads finish, the complete HDR sampleBuffer is copied through the bilateral filtering process into a separate output buffer. The filtered image is then converted to display colors and saved as a PNG.
+		</p>
+
+		<p>
+			The original HDR sampleBuffer remains unchanged. I also added a boolean switch so that bilateral denoising is disabled by default, preserving the original path tracer behavior for Parts 1 through 5.
+		</p>
+
+		<h3> Rendering Results </h3>
+
+		<p>
+			I tested bilateral deboising on the CBbunny scene using 16 samples per pixel, 4 area-light samples, and a maximum ray depth of 5. The images below compare the noisy low-sample rendering with the bilaterally filtered result.
+		</p>
+
+		<div class="image-grid">
+			<figure>
+				<img src="./assets/part6/CBbunny_16_original.png"
+					alt="Original CBbunny rendering at 16 spp">
+				<figcaption>
+					Original Rendering — 16 SPP
+				</figcaption>
+			</figure>
+
+			<figure>
+				<img src="./assets/part6/CBbunny_16_denoised.png"
+					alt="Bilateral denoised CBbunny rendering at 16 spp">
+				<figcaption>
+					Bilateral Denoising — 16 SPP
+				</figcaption>
+			</figure>
+		</div>
+
+		<p>
+			For reference, the following image was rendered with 1024 samples per pixel using the original path tracer.
+		</p>
+
+		<figure class="image-center" style="width: 60%;">
+			<img src="./assets/part6/CBbunny_1024_reference.png"
+				alt="CBbunny reference rendering at 1024 spp">
+			<figcaption>
+				Reference Rendering — 1024 SPP
+			</figcaption>
+		</figure>
+
+		<h3> Results anf Analysis </h3>
+
+		<p>
+			The bilateral filter reduces visible noise in the low-sample rendering, especially across diffuse surfaces such as the walls, floor, and bunny. Compare with the noisy input, the filtered image appears smoother while retaining the main object silhouettes and color boundaries.
+		</p>
+
+		<p>
+			However, the filtered result also shows some loss of fine detail. In particular, parts of the bunny surface and soft shadow boundaries appear slightly blurred. This illustrates the trade-off between noise reduction and detail preservation. Increasing the filter radius of range sigma can produce stronger smoothing, but may also remove important image feature.
+		</p>
+
+		<p>
+			The 1024-SPP image provides a useful visual reference for evaluating the remaining noise and image details. Te original and denoised 16-SPP images were generated in separate stochastic rendering runs, so their differences cannot be attributed solely to filtering. Nevertheless, the comparison demonstrates the potential of bilateral denoising as a lightweight post-processing technique for low-sample path tracing.
+		</p>
+
+		<h3> Conclusion </h3>
+
+		<p>
+			This extension helped me understand the relationship between Monte Carlo sampling noise and image-space filtering. It also highlighted the importance of placing post-processing operations at the correct stage of the rendering pipeline. By applying the bilateral filter only after the complete image is available, I was able to eliminate tile-related artifacts and preserve the original rendering data.
+		</p>
+
 		</div>
 	</body>
 </html>
